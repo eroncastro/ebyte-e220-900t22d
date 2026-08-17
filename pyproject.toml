@@ -4,6 +4,10 @@ version = "0.1.0"
 description = "MicroPython driver for the EBYTE E220-900T22D LoRa module"
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
 
 [dependency-groups]
 dev = [
