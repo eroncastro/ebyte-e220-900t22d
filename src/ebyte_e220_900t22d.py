@@ -149,36 +149,24 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         self.set_normal_mode()
 
     def __repr__(self):
-        repr = ('EbyteE220900T22D('
-                'uart={uart}, '
-                'm0={m0}, '
-                'm1={m1}, '
-                'aux={aux}, '
-                'module_address={module_address}, '
-                'network_id={network_id}, '
-                'serial_port_rate={serial_port_rate}, '
-                'serial_parity_bit={serial_parity_bit}, '
-                'air_data_rate={air_data_rate}, '
-                'sub_packet_length={sub_packet_length}, '
-                'ambient_noise_enabled={ambient_noise_enabled}, '
-                'transmitting_power={transmitting_power}, '
-                'channel={channel}, '
-                'frequency={frequency})')
-
-        return repr.format(uart=self.uart,
-                           m0=self.m0,
-                           m1=self.m1,
-                           aux=self.aux,
-                           module_address=self.module_address,
-                           network_id=self.network_id,
-                           serial_port_rate=self.serial_port_rate,
-                           serial_parity_bit=self.serial_parity_bit,
-                           air_data_rate=self.air_data_rate,
-                           sub_packet_length=self.sub_packet_length,
-                           ambient_noise_enabled=self.ambient_noise_enabled,
-                           transmitting_power=self.transmitting_power,
-                           channel=self.channel,
-                           frequency=self.frequency)
+        # Explicit `+` (not adjacent-literal concatenation) between these
+        # f-strings: MicroPython 1.17 doesn't support implicit concatenation
+        # of adjacent f-string literals.
+        return (f'EbyteE220900T22D(' +
+                f'uart={self.uart}, ' +
+                f'm0={self.m0}, ' +
+                f'm1={self.m1}, ' +
+                f'aux={self.aux}, ' +
+                f'module_address={self.module_address}, ' +
+                f'network_id={self.network_id}, ' +
+                f'serial_port_rate={self.serial_port_rate}, ' +
+                f'serial_parity_bit={self.serial_parity_bit}, ' +
+                f'air_data_rate={self.air_data_rate}, ' +
+                f'sub_packet_length={self.sub_packet_length}, ' +
+                f'ambient_noise_enabled={self.ambient_noise_enabled}, ' +
+                f'transmitting_power={self.transmitting_power}, ' +
+                f'channel={self.channel}, ' +
+                f'frequency={self.frequency})')
 
     def set_normal_mode(self):
         self.set_mode(self.OperationMode.NORMAL)
@@ -200,7 +188,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     def module_address(self, value):
         if type(value) != int or value < 0 or value > self.MAX_MODULE_ADDRESS:
             raise ValueError(
-                'Field module_address must be an int between 0 and {max}.'.format(max=self.MAX_MODULE_ADDRESS))
+                f'Field module_address must be an int between 0 and {self.MAX_MODULE_ADDRESS}.')
 
         high, low = value.to_bytes(2, 'big')
         self.set_register(0x00, 0x02, high, low)
@@ -217,7 +205,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     def network_id(self, value):
         if type(value) != int or value < 0 or value > self.MAX_NETWORK_ID:
             raise ValueError(
-                'Field network_id must be an int between 0 and {max}.'.format(max=self.MAX_NETWORK_ID))
+                f'Field network_id must be an int between 0 and {self.MAX_NETWORK_ID}.')
 
         self.set_register(0x02, 0x01, value)
         self._network_id = value
@@ -232,11 +220,9 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     @serial_port_rate.setter
     def serial_port_rate(self, value):
         if type(value) != int or not value in self.SERIAL_PORT_RATE:
-            message = ('Field serial_port_rate must be one '
-                       'of the following values: {values}.')
             values = ', '.join(map(str, self.SERIAL_PORT_RATE.keys()))
-
-            raise ValueError(message.format(values=values))
+            raise ValueError(
+                f'Field serial_port_rate must be one of the following values: {values}.')
 
         port_rate_bin = self.SERIAL_PORT_RATE[value]
 
@@ -261,11 +247,9 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     @serial_parity_bit.setter
     def serial_parity_bit(self, value):
         if not value in self.SERIAL_PARITY_BIT:
-            message = ('Field serial_parity_bit must be one '
-                       'of the following values: {values}.')
             values = ', '.join(self.SERIAL_PARITY_BIT.keys())
-
-            raise ValueError(message.format(values=values))
+            raise ValueError(
+                f'Field serial_parity_bit must be one of the following values: {values}.')
 
         serial_parity_bit_bin = self.SERIAL_PARITY_BIT[value]
 
@@ -289,11 +273,9 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     @air_data_rate.setter
     def air_data_rate(self, value):
         if not value in self.AIR_DATA_RATE:
-            message = ('Field air_data_rate must be one '
-                       'of the following values: {values}.')
             values = ', '.join(map(str, self.AIR_DATA_RATE.keys()))
-
-            raise ValueError(message.format(values=values))
+            raise ValueError(
+                f'Field air_data_rate must be one of the following values: {values}.')
 
         air_data_rate_bin = self.AIR_DATA_RATE[value]
 
@@ -317,11 +299,9 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     @sub_packet_length.setter
     def sub_packet_length(self, value):
         if type(value) != int or not value in self.SUB_PACKET_LENGTH:
-            message = ('Field sub_packet_length must be one '
-                       'of the following values: {values}.')
             values = ', '.join(map(str, self.SUB_PACKET_LENGTH.keys()))
-
-            raise ValueError(message.format(values=values))
+            raise ValueError(
+                f'Field sub_packet_length must be one of the following values: {values}.')
 
         sub_packet_length_bin = self.SUB_PACKET_LENGTH[value]
 
@@ -369,11 +349,9 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     @transmitting_power.setter
     def transmitting_power(self, value):
         if type(value) != int or not value in self.TRANSMITTING_POWER:
-            message = ('Field transmitting_power must be one '
-                       'of the following values: {values}.')
             values = ', '.join(map(str, self.TRANSMITTING_POWER.keys()))
-
-            raise ValueError(message.format(values=values))
+            raise ValueError(
+                f'Field transmitting_power must be one of the following values: {values}.')
 
         transmitting_power_bin = self.TRANSMITTING_POWER[value]
 
@@ -397,8 +375,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     @channel.setter
     def channel(self, value):
         if type(value) != int or value < 0 or value > self.MAX_CHANNEL:
-            message = 'Field channel must be an int from 0 to {max_channel}.'
-            raise ValueError(message.format(max_channel=self.MAX_CHANNEL))
+            raise ValueError(f'Field channel must be an int from 0 to {self.MAX_CHANNEL}.')
 
         self.set_register(0x05, 0x01, value)
         self._channel = value
@@ -417,10 +394,8 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         if (type(value) not in valid_types or
             value < self.MIN_FREQUENCY or
             value > self.MAX_FREQUENCY):
-            message = 'Field frequency must be a number from {min} to {max}.'
-
-            raise ValueError(message.format(min=self.MIN_FREQUENCY,
-                                            max=self.MAX_FREQUENCY))
+            raise ValueError(
+                f'Field frequency must be a number from {self.MIN_FREQUENCY} to {self.MAX_FREQUENCY}.')
 
         self._channel = round(value - self.MIN_FREQUENCY)
 
