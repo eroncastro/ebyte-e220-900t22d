@@ -400,8 +400,11 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         self._channel = round(value - self.MIN_FREQUENCY)
 
     def _saved_value(self, starting_address, length):
-        value = self.read_register(starting_address, length)[3:]
-        return int.from_bytes(value, 'big')
+        value = self.read_register(starting_address, length)
+        if not value or not any(value):
+            raise ValueError('No response from module: check wiring and mode pins.')
+
+        return int.from_bytes(value[3:], 'big')
 
     def receive(self):
         self.set_normal_mode()
