@@ -65,9 +65,10 @@ class RawEbyteE220900T22D:
 
 class EbyteE220900T22D(RawEbyteE220900T22D):
     class OperationMode:
+        # (M0, M1)
         NORMAL = (0, 0)
-        WOR = (1, 0)
-        CONFIGURATION = (0, 1)
+        WOR_SENDING = (1, 0)
+        WOR_RECEIVING = (0, 1)
         DEEP_SLEEP = (1, 1)
 
     SERIAL_PORT_RATE = {
@@ -88,8 +89,6 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     }
 
     AIR_DATA_RATE = {
-        0.3: 0b000,
-        1.2: 0b001,
         2.4: 0b010,
         4.8: 0b011,
         9.6: 0b100,
@@ -102,7 +101,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         32: 0b11,
         64: 0b10,
         128: 0b01,
-        240: 0b00,
+        200: 0b00,
     }
 
     AMBIENT_NOISE_ENABLED = {
@@ -119,7 +118,6 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     MAX_CHANNEL = 80
     MAX_MODULE_ADDRESS = 65535
-    MAX_NETWORK_ID = 255
     MIN_FREQUENCY = 850.125
     MAX_FREQUENCY = 930.125
     MAX_READ_RETRIES = 10
@@ -131,12 +129,9 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
                  aux=None):
         super().__init__(uart, m0, m1, aux)
 
-        # Switch to configuration mode to read registers.
-        # Deep sleep mode is the configuration mode, despite the docs.
-        self.set_deep_sleep_mode()
+        self.set_configuration_mode()
 
         self._module_address = self._saved_module_address()
-        self._network_id = self._saved_network_id()
         self._serial_port_rate = self._saved_serial_port_rate()
         self._serial_parity_bit = self._saved_serial_parity_bit()
         self._air_data_rate = self._saved_air_data_rate()
@@ -145,7 +140,6 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         self._transmitting_power = self._saved_transmitting_power()
         self._channel = self._saved_channel()
 
-        # Set to normal mode for operation
         self.set_normal_mode()
 
     def __repr__(self):
@@ -158,7 +152,6 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
                 f'm1={self.m1}, ' +
                 f'aux={self.aux}, ' +
                 f'module_address={self.module_address}, ' +
-                f'network_id={self.network_id}, ' +
                 f'serial_port_rate={self.serial_port_rate}, ' +
                 f'serial_parity_bit={self.serial_parity_bit}, ' +
                 f'air_data_rate={self.air_data_rate}, ' +
@@ -171,11 +164,14 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     def set_normal_mode(self):
         self.set_mode(self.OperationMode.NORMAL)
 
-    def set_wor_mode(self):
-        self.set_mode(self.OperationMode.WOR)
+    def set_wor_sending_mode(self):
+        self.set_mode(self.OperationMode.WOR_SENDING)
+
+    def set_wor_receiving_mode(self):
+        self.set_mode(self.OperationMode.WOR_RECEIVING)
 
     def set_configuration_mode(self):
-        self.set_mode(self.OperationMode.CONFIGURATION)
+        self.set_mode(self.OperationMode.DEEP_SLEEP)
 
     def set_deep_sleep_mode(self):
         self.set_mode(self.OperationMode.DEEP_SLEEP)
@@ -198,22 +194,6 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         return self._saved_value(0x00, 0x02)
 
     @property
-    def network_id(self):
-        return self._network_id
-
-    @network_id.setter
-    def network_id(self, value):
-        if type(value) != int or value < 0 or value > self.MAX_NETWORK_ID:
-            raise ValueError(
-                f'Field network_id must be an int between 0 and {self.MAX_NETWORK_ID}.')
-
-        self.set_register(0x02, 0x01, value)
-        self._network_id = value
-
-    def _saved_network_id(self):
-        return self._saved_value(0x02, 0x01)
-
-    @property
     def serial_port_rate(self):
         return self._serial_port_rate
 
@@ -226,19 +206,15 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         port_rate_bin = self.SERIAL_PORT_RATE[value]
 
-        saved_value = self._saved_value(0x03, 0x01)
-        new_value = port_rate_bin << 5 + (0b00011111 & saved_value)
-        self.set_register(0x03, 0x01, new_value)
+        saved_value = self._saved_value(0x02, 0x01)
+        new_value = (port_rate_bin << 5) + (0b00011111 & saved_value)
+        self.set_register(0x02, 0x01, new_value)
 
         self._serial_port_rate = value
 
     def _saved_serial_port_rate(self):
-        value = bin(self._saved_value(0x03, 0x01))[2:]
-        rate_bin = int(('0' * (8 - len(value)) + value)[0:3], 2)
-
-        for k in self.SERIAL_PORT_RATE:
-            if self.SERIAL_PORT_RATE[k] == rate_bin:
-                return k
+        code = (self._saved_value(0x02, 0x01) >> 5) & 0b111
+        return self._key_for(self.SERIAL_PORT_RATE, code)
 
     @property
     def serial_parity_bit(self):
@@ -253,18 +229,16 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         serial_parity_bit_bin = self.SERIAL_PARITY_BIT[value]
 
-        saved_value = self._saved_value(0x03, 0x01)
-        new_value = serial_parity_bit_bin << 3 + (0b11100111 & saved_value)
-        self.set_register(0x03, 0x01, new_value)
+        saved_value = self._saved_value(0x02, 0x01)
+        new_value = (serial_parity_bit_bin << 3) + (0b11100111 & saved_value)
+        self.set_register(0x02, 0x01, new_value)
         self._serial_parity_bit = value
 
     def _saved_serial_parity_bit(self):
-        value = bin(self._saved_value(0x03, 0x01))[2:]
-        serial_parity_bit_bin = int(('0' * (8 - len(value)) + value)[3:5], 2)
-
-        for k in self.SERIAL_PARITY_BIT:
-            if self.SERIAL_PARITY_BIT[k] == serial_parity_bit_bin:
-                return k
+        code = (self._saved_value(0x02, 0x01) >> 3) & 0b11
+        if code == 0b11:  # 0b11 is an alias for 0b00 (8N1) per the manual
+            code = 0b00
+        return self._key_for(self.SERIAL_PARITY_BIT, code)
 
     @property
     def air_data_rate(self):
@@ -279,18 +253,16 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         air_data_rate_bin = self.AIR_DATA_RATE[value]
 
-        saved_value = self._saved_value(0x03, 0x01)
+        saved_value = self._saved_value(0x02, 0x01)
         new_value = air_data_rate_bin + (0b11111000 & saved_value)
-        self.set_register(0x03, 0x01, new_value)
+        self.set_register(0x02, 0x01, new_value)
         self._air_data_rate = value
 
     def _saved_air_data_rate(self):
-        value = bin(self._saved_value(0x03, 0x01))[2:]
-        air_data_rate_bin = int(('0' * (8 - len(value)) + value)[5:], 2)
-
-        for k in self.AIR_DATA_RATE:
-            if self.AIR_DATA_RATE[k] == air_data_rate_bin:
-                return k
+        code = self._saved_value(0x02, 0x01) & 0b111
+        if code < 0b010:  # 0b000/0b001/0b010 all mean 2.4k on the E220
+            code = 0b010
+        return self._key_for(self.AIR_DATA_RATE, code)
 
     @property
     def sub_packet_length(self):
@@ -305,18 +277,15 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         sub_packet_length_bin = self.SUB_PACKET_LENGTH[value]
 
-        saved_value = self._saved_value(0x04, 0x01)
-        new_value = sub_packet_length_bin << 6 + (0b00111111 & saved_value)
-        self.set_register(0x04, 0x01, new_value)
-        self._air_data_rate = value
+        saved_value = self._saved_value(0x03, 0x01)
+        new_value = (sub_packet_length_bin << 6) + (0b00111111 & saved_value)
+        self.set_register(0x03, 0x01, new_value)
+
+        self._sub_packet_length = value
 
     def _saved_sub_packet_length(self):
-        value = bin(self._saved_value(0x04, 0x01))[2:]
-        sub_packet_length_bin = int(('0' * (8 - len(value)) + value)[0:2], 2)
-
-        for k in self.SUB_PACKET_LENGTH:
-            if self.SUB_PACKET_LENGTH[k] == sub_packet_length_bin:
-                return k
+        code = (self._saved_value(0x03, 0x01) >> 6) & 0b11
+        return self._key_for(self.SUB_PACKET_LENGTH, code)
 
     @property
     def ambient_noise_enabled(self):
@@ -329,18 +298,14 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         ambient_noise_enabled = self.AMBIENT_NOISE_ENABLED[value]
 
-        saved_value = self._saved_value(0x04, 0x01)
-        new_value = ambient_noise_enabled << 5 + (0b11011111 & saved_value)
-        self.set_register(0x04, 0x01, new_value)
+        saved_value = self._saved_value(0x03, 0x01)
+        new_value = (ambient_noise_enabled << 5) + (0b11011111 & saved_value)
+        self.set_register(0x03, 0x01, new_value)
         self._ambient_noise_enabled = value
 
     def _saved_ambient_noise_enabled(self):
-        value = bin(self._saved_value(0x04, 0x01))[2:]
-        ambient_noise_enabled = int(('0' * (8 - len(value)) + value)[2:3], 2)
-
-        for k in self.AMBIENT_NOISE_ENABLED:
-            if self.AMBIENT_NOISE_ENABLED[k] == ambient_noise_enabled:
-                return k
+        code = (self._saved_value(0x03, 0x01) >> 5) & 0b1
+        return self._key_for(self.AMBIENT_NOISE_ENABLED, code)
 
     @property
     def transmitting_power(self):
@@ -355,18 +320,14 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         transmitting_power_bin = self.TRANSMITTING_POWER[value]
 
-        saved_value = self._saved_value(0x04, 0x01)
+        saved_value = self._saved_value(0x03, 0x01)
         new_value = transmitting_power_bin + (0b11111100 & saved_value)
-        self.set_register(0x04, 0x01, new_value)
+        self.set_register(0x03, 0x01, new_value)
         self._transmitting_power = value
 
     def _saved_transmitting_power(self):
-        value = bin(self._saved_value(0x04, 0x01))[2:]
-        transmitting_power = int(('0' * (8 - len(value)) + value)[6:], 2)
-
-        for k in self.TRANSMITTING_POWER:
-            if self.TRANSMITTING_POWER[k] == transmitting_power:
-                return k
+        code = self._saved_value(0x03, 0x01) & 0b11
+        return self._key_for(self.TRANSMITTING_POWER, code)
 
     @property
     def channel(self):
@@ -377,11 +338,11 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         if type(value) != int or value < 0 or value > self.MAX_CHANNEL:
             raise ValueError(f'Field channel must be an int from 0 to {self.MAX_CHANNEL}.')
 
-        self.set_register(0x05, 0x01, value)
+        self.set_register(0x04, 0x01, value)
         self._channel = value
 
     def _saved_channel(self):
-        return self._saved_value(0x05, 0x01)
+        return self._saved_value(0x04, 0x01)
 
     @property
     def frequency(self):
@@ -398,6 +359,14 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
                 f'Field frequency must be a number from {self.MIN_FREQUENCY} to {self.MAX_FREQUENCY}.')
 
         self._channel = round(value - self.MIN_FREQUENCY)
+
+    @staticmethod
+    def _key_for(mapping, code):
+        for key, mapped_code in mapping.items():
+            if mapped_code == code:
+                return key
+
+        raise ValueError(f'Module returned an unrecognized register code: {bin(code)}.')
 
     def _saved_value(self, starting_address, length):
         value = self.read_register(starting_address, length)

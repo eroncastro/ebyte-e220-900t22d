@@ -10,23 +10,22 @@ def reg_response(addr, payload):
     return bytes([0xC1, addr, len(payload)]) + payload
 
 
-# Register 0x03 = 0x62 = 0b01100010 decodes to:
+# REG0 (address 0x02) = 0x62 = 0b01100010 decodes to:
 #   serial_port_rate=9600 (0b011), serial_parity_bit='8N1' (0b00), air_data_rate=2.4 (0b010)
-REG_03 = 0x62
-# Register 0x04 = 0xA1 = 0b10100001 decodes to:
+REG_0 = 0x62
+# REG1 (address 0x03) = 0xA1 = 0b10100001 decodes to:
 #   sub_packet_length=64 (0b10), ambient_noise_enabled=True (1), transmitting_power=17 (0b01)
-REG_04 = 0xA1
+REG_1 = 0xA1
 
 INIT_RESPONSES = [
     reg_response(0x00, [0x12, 0x34]),  # module_address
-    reg_response(0x02, [0x05]),        # network_id
-    reg_response(0x03, [REG_03]),      # serial_port_rate
-    reg_response(0x03, [REG_03]),      # serial_parity_bit
-    reg_response(0x03, [REG_03]),      # air_data_rate
-    reg_response(0x04, [REG_04]),      # sub_packet_length
-    reg_response(0x04, [REG_04]),      # ambient_noise_enabled
-    reg_response(0x04, [REG_04]),      # transmitting_power
-    reg_response(0x05, [0x0A]),        # channel
+    reg_response(0x02, [REG_0]),       # serial_port_rate
+    reg_response(0x02, [REG_0]),       # serial_parity_bit
+    reg_response(0x02, [REG_0]),       # air_data_rate
+    reg_response(0x03, [REG_1]),       # sub_packet_length
+    reg_response(0x03, [REG_1]),       # ambient_noise_enabled
+    reg_response(0x03, [REG_1]),       # transmitting_power
+    reg_response(0x04, [0x0A]),        # channel
 ]
 
 
@@ -137,7 +136,6 @@ class TestConstructorDecodesRegisters:
         dev, uart, m0, m1 = device
 
         assert dev.module_address == 0x1234
-        assert dev.network_id == 5
         assert dev.serial_port_rate == 9600
         assert dev.serial_parity_bit == "8N1"
         assert dev.air_data_rate == 2.4
@@ -147,10 +145,10 @@ class TestConstructorDecodesRegisters:
         assert dev.channel == 10
         assert dev.frequency == pytest.approx(860.125)
 
-    def test_enters_deep_sleep_then_normal_mode(self, device):
+    def test_enters_configuration_then_normal_mode(self, device):
         dev, uart, m0, m1 = device
 
-        # deep sleep (1, 1) first, normal (0, 0) last
+        # configuration / deep sleep (1, 1) first, normal (0, 0) last
         assert m0.history[0] == 1 and m1.history[0] == 1
         assert m0.history[-1] == 0 and m1.history[-1] == 0
 
@@ -178,30 +176,13 @@ class TestModuleAddress:
             dev.module_address = bad
 
 
-class TestNetworkId:
-    def test_valid_value_writes_one_byte(self, device):
-        dev, uart, m0, m1 = device
-
-        dev.network_id = 42
-
-        assert uart.written[-1] == bytes([0xC0, 0x02, 0x01, 42])
-        assert dev.network_id == 42
-
-    @pytest.mark.parametrize("bad", [-1, 256, 1.5])
-    def test_rejects_out_of_range_or_wrong_type(self, device, bad):
-        dev, uart, m0, m1 = device
-
-        with pytest.raises(ValueError):
-            dev.network_id = bad
-
-
 class TestChannelAndFrequency:
     def test_valid_channel_writes_one_byte(self, device):
         dev, uart, m0, m1 = device
 
         dev.channel = 20
 
-        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 20])
+        assert uart.written[-1] == bytes([0xC0, 0x04, 0x01, 20])
         assert dev.frequency == pytest.approx(870.125)
 
     @pytest.mark.parametrize("bad", [-1, 81, 1.5])
@@ -231,12 +212,12 @@ class TestAirDataRate:
 
     def test_setting_updates_only_its_bits(self, device):
         dev, uart, m0, m1 = device
-        uart.queue.append(reg_response(0x03, [REG_03]))  # answers the internal re-read
+        uart.queue.append(reg_response(0x02, [REG_0]))  # answers the internal re-read
 
         dev.air_data_rate = 62.5  # 0b111
 
         # low 3 bits replaced, high 5 bits (rate+parity) preserved: 0b01100 111 = 0x67
-        assert uart.written[-1] == bytes([0xC0, 0x03, 0x01, 0b01100111])
+        assert uart.written[-1] == bytes([0xC0, 0x02, 0x01, 0b01100111])
         assert dev.air_data_rate == 62.5
 
     def test_rejects_unknown_value(self, device):
@@ -251,12 +232,12 @@ class TestTransmittingPower:
 
     def test_setting_updates_only_its_bits(self, device):
         dev, uart, m0, m1 = device
-        uart.queue.append(reg_response(0x04, [REG_04]))  # answers the internal re-read
+        uart.queue.append(reg_response(0x03, [REG_1]))  # answers the internal re-read
 
         dev.transmitting_power = 10  # 0b11
 
         # high 6 bits (sub-packet+noise+reserved) preserved, low 2 bits replaced: 0b101000 11 = 0xA3
-        assert uart.written[-1] == bytes([0xC0, 0x04, 0x01, 0b10100011])
+        assert uart.written[-1] == bytes([0xC0, 0x03, 0x01, 0b10100011])
         assert dev.transmitting_power == 10
 
     def test_rejects_unknown_value(self, device):
@@ -266,65 +247,86 @@ class TestTransmittingPower:
             dev.transmitting_power = 999
 
 
-class TestKnownBrokenBitShiftSetters:
-    """serial_port_rate / serial_parity_bit / sub_packet_length / ambient_noise_enabled
-    compute their new register byte as `bin_value << N + (mask & saved)` instead of
-    `(bin_value << N) + (mask & saved)`. Python's `+` binds tighter than `<<`, so this
-    shifts by a much larger amount than intended and produces a value that can't fit in
-    a byte, which crashes when set_register() builds the outgoing bytearray.
-
-    These tests pin down the CURRENT (buggy) behavior so a fix is a visible diff, not a
-    silent behavior change. See the extraction summary for suggested fixes.
-    """
-
-    def test_serial_port_rate_setter_crashes_instead_of_writing(self, device):
+class TestSerialPortRate:
+    def test_setting_updates_only_its_bits(self, device):
         dev, uart, m0, m1 = device
-        uart.queue.append(reg_response(0x03, [REG_03]))
+        uart.queue.append(reg_response(0x02, [REG_0]))  # answers the internal re-read
 
-        with pytest.raises(ValueError, match="must be in range"):
-            dev.serial_port_rate = 115200
+        dev.serial_port_rate = 115200  # 0b111
 
-    def test_serial_parity_bit_setter_crashes_instead_of_writing(self, device):
+        # high 3 bits replaced, low 5 bits (parity+air rate) preserved: 0b111 00010
+        assert uart.written[-1] == bytes([0xC0, 0x02, 0x01, 0b11100010])
+        assert dev.serial_port_rate == 115200
+
+    def test_rejects_unknown_value(self, device):
         dev, uart, m0, m1 = device
-        uart.queue.append(reg_response(0x03, [REG_03]))
 
-        with pytest.raises(ValueError, match="must be in range"):
-            dev.serial_parity_bit = "8E1"
+        with pytest.raises(ValueError):
+            dev.serial_port_rate = 12345
 
-    def test_ambient_noise_enabled_true_setter_crashes_instead_of_writing(self, device):
+
+class TestSerialParityBit:
+    def test_setting_updates_only_its_bits(self, device):
         dev, uart, m0, m1 = device
-        uart.queue.append(reg_response(0x04, [REG_04]))
+        uart.queue.append(reg_response(0x02, [REG_0]))  # answers the internal re-read
 
-        with pytest.raises(ValueError, match="must be in range"):
-            dev.ambient_noise_enabled = True
+        dev.serial_parity_bit = "8E1"  # 0b10
 
-    def test_ambient_noise_enabled_false_setter_silently_corrupts_register(self, device):
-        """bin_value is 0 for False, so `0 << huge_shift` is just 0 -- no crash,
-        but it silently writes 0x00 instead of the byte that would actually
-        clear only the ambient-noise bit (0x81), stomping every other field
-        packed into register 0x04."""
+        # bits 4-3 replaced, rate (7-5) and air rate (2-0) preserved: 0b011 10 010
+        assert uart.written[-1] == bytes([0xC0, 0x02, 0x01, 0b01110010])
+        assert dev.serial_parity_bit == "8E1"
+
+    def test_rejects_unknown_value(self, device):
         dev, uart, m0, m1 = device
-        uart.queue.append(reg_response(0x04, [REG_04]))
+
+        with pytest.raises(ValueError):
+            dev.serial_parity_bit = "9N2"
+
+
+class TestSubPacketLength:
+    def test_setting_updates_only_its_bits(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x03, [REG_1]))  # answers the internal re-read
+
+        dev.sub_packet_length = 128  # 0b01
+
+        # bits 7-6 replaced, low 6 bits (noise+reserved+power) preserved: 0b01 100001
+        assert uart.written[-1] == bytes([0xC0, 0x03, 0x01, 0b01100001])
+        assert dev.sub_packet_length == 128
+
+    def test_rejects_unknown_value(self, device):
+        dev, uart, m0, m1 = device
+
+        with pytest.raises(ValueError):
+            dev.sub_packet_length = 99
+
+
+class TestAmbientNoiseEnabled:
+    def test_enabling_sets_only_bit_5(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x03, [REG_1]))  # answers the internal re-read
+
+        dev.ambient_noise_enabled = True
+
+        # bit 5 set, every other bit of 0xA1 preserved
+        assert uart.written[-1] == bytes([0xC0, 0x03, 0x01, 0xA1])
+        assert dev.ambient_noise_enabled is True
+
+    def test_disabling_clears_only_bit_5(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x03, [REG_1]))  # answers the internal re-read
 
         dev.ambient_noise_enabled = False
 
-        assert uart.written[-1] == bytes([0xC0, 0x04, 0x01, 0x00])
-        assert uart.written[-1] != bytes([0xC0, 0x04, 0x01, 0x81])  # what it should be
+        # bit 5 cleared, every other bit of 0xA1 preserved: 0xA1 & ~0x20 == 0x81
+        assert uart.written[-1] == bytes([0xC0, 0x03, 0x01, 0x81])
+        assert dev.ambient_noise_enabled is False
 
-    def test_sub_packet_length_setter_crashes_instead_of_writing(self, device):
+    def test_rejects_non_bool(self, device):
         dev, uart, m0, m1 = device
-        uart.queue.append(reg_response(0x04, [REG_04]))
 
-        with pytest.raises(ValueError, match="must be in range"):
-            dev.sub_packet_length = 128
-
-    def test_sub_packet_length_setter_writes_wrong_attribute(self, device):
-        """Even ignoring the crash: the setter assigns to self._air_data_rate,
-        not self._sub_packet_length (copy-paste from the setter above it)."""
-        import inspect
-
-        source = inspect.getsource(type(device[0]).sub_packet_length.fset)
-        assert "self._air_data_rate = value" in source
+        with pytest.raises(ValueError):
+            dev.ambient_noise_enabled = 1
 
 
 class TestReceive:
