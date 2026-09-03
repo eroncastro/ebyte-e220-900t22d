@@ -78,6 +78,17 @@ class TestRawReadRegister:
         assert response == reg_response(0x03, [0x01])
         assert uart.written == [bytes([0xC1, 0x03, 0x01])]
 
+    def test_drain_raises_when_peer_keeps_streaming(self, uart, pins):
+        m0, m1 = pins
+        uart.incoming = [b"\xff"] * 100  # peer never stops talking
+        raw = RawEbyteE220900T22D(uart, m0, m1)
+
+        with pytest.raises(RuntimeError, match="not empty"):
+            raw._clear_uart()
+
+        # bounded: it gave up after MAX_CLEAR_READS instead of looping forever
+        assert 100 - len(uart.incoming) == RawEbyteE220900T22D.MAX_CLEAR_READS
+
     def test_no_response_returns_none(self, uart, pins, no_delay):
         m0, m1 = pins
         raw = RawEbyteE220900T22D(uart, m0, m1)

@@ -4,6 +4,7 @@ from time import sleep_ms
 class RawEbyteE220900T22D:
 
     MAX_READ_RETRIES = 10
+    MAX_CLEAR_READS = 32
 
     def __init__(self, uart, m0, m1, aux=None):
         self.uart = uart
@@ -63,8 +64,13 @@ class RawEbyteE220900T22D:
         return None
 
     def _clear_uart(self):
-        while self.uart.read():
-            continue
+        for _ in range(self.MAX_CLEAR_READS):
+            if not self.uart.read():
+                return
+
+        raise RuntimeError(
+            f'UART buffer not empty after {self.MAX_CLEAR_READS} reads; '
+            'the module may be streaming data or the wiring is wrong.')
 
 
 class EbyteE220900T22D(RawEbyteE220900T22D):
