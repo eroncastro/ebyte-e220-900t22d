@@ -120,7 +120,6 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
     MAX_MODULE_ADDRESS = 65535
     MIN_FREQUENCY = 850.125
     MAX_FREQUENCY = 930.125
-    MAX_READ_RETRIES = 10
 
     def __init__(self,
                  uart,
@@ -182,7 +181,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @module_address.setter
     def module_address(self, value):
-        if type(value) != int or value < 0 or value > self.MAX_MODULE_ADDRESS:
+        if not isinstance(value, int) or value < 0 or value > self.MAX_MODULE_ADDRESS:
             raise ValueError(
                 f'Field module_address must be an int between 0 and {self.MAX_MODULE_ADDRESS}.')
 
@@ -199,7 +198,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @serial_port_rate.setter
     def serial_port_rate(self, value):
-        if type(value) != int or not value in self.SERIAL_PORT_RATE:
+        if not isinstance(value, int) or value not in self.SERIAL_PORT_RATE:
             values = ', '.join(map(str, self.SERIAL_PORT_RATE.keys()))
             raise ValueError(
                 f'Field serial_port_rate must be one of the following values: {values}.')
@@ -270,7 +269,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @sub_packet_length.setter
     def sub_packet_length(self, value):
-        if type(value) != int or not value in self.SUB_PACKET_LENGTH:
+        if not isinstance(value, int) or value not in self.SUB_PACKET_LENGTH:
             values = ', '.join(map(str, self.SUB_PACKET_LENGTH.keys()))
             raise ValueError(
                 f'Field sub_packet_length must be one of the following values: {values}.')
@@ -293,7 +292,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @ambient_noise_enabled.setter
     def ambient_noise_enabled(self, value):
-        if type(value) != bool:
+        if not isinstance(value, bool):
             raise ValueError('Field ambient_noise_enabled must be a bool.')
 
         ambient_noise_enabled = self.AMBIENT_NOISE_ENABLED[value]
@@ -313,7 +312,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @transmitting_power.setter
     def transmitting_power(self, value):
-        if type(value) != int or not value in self.TRANSMITTING_POWER:
+        if not isinstance(value, int) or value not in self.TRANSMITTING_POWER:
             values = ', '.join(map(str, self.TRANSMITTING_POWER.keys()))
             raise ValueError(
                 f'Field transmitting_power must be one of the following values: {values}.')
@@ -335,7 +334,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @channel.setter
     def channel(self, value):
-        if type(value) != int or value < 0 or value > self.MAX_CHANNEL:
+        if not isinstance(value, int) or value < 0 or value > self.MAX_CHANNEL:
             raise ValueError(f'Field channel must be an int from 0 to {self.MAX_CHANNEL}.')
 
         self.set_register(0x04, 0x01, value)
@@ -350,9 +349,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @frequency.setter
     def frequency(self, value):
-        valid_types = (float, int)
-
-        if (type(value) not in valid_types or
+        if (not isinstance(value, (float, int)) or
             value < self.MIN_FREQUENCY or
             value > self.MAX_FREQUENCY):
             raise ValueError(
