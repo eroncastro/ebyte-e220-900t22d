@@ -32,11 +32,15 @@ class RawEbyteE220900T22D:
 
         try:
             m0, m1 = mode
-            self.m0.value(m0)
-            self.m1.value(m1)
-            sleep_ms(20)  # Wait for module to be ready after mode change
-        except:
-            raise ValueError('Invalid mode.')
+        except (TypeError, ValueError):
+            raise ValueError('Invalid mode: expected an (m0, m1) pair.')
+
+        if m0 not in (0, 1) or m1 not in (0, 1):
+            raise ValueError('Invalid mode: m0 and m1 must each be 0 or 1.')
+
+        self.m0.value(m0)
+        self.m1.value(m1)
+        sleep_ms(20)  # Wait for module to be ready after mode change
 
     def _wrong_format(self, response):
         return response and all(el == 0xff for el in list(response))

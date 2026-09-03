@@ -123,12 +123,15 @@ class TestRawSetMode:
         with pytest.raises(AttributeError):
             raw.set_mode((0, 0))
 
-    def test_invalid_mode_raises_value_error(self, uart, pins):
+    @pytest.mark.parametrize("bad", [None, (1,), (0, 1, 0), "ab", (2, 0), (0, -1)])
+    def test_invalid_mode_raises_value_error(self, uart, pins, bad):
         m0, m1 = pins
         raw = RawEbyteE220900T22D(uart, m0, m1)
 
         with pytest.raises(ValueError):
-            raw.set_mode(None)
+            raw.set_mode(bad)
+
+        assert m0.history == [] and m1.history == []  # nothing written on a bad mode
 
 
 class TestConstructorDecodesRegisters:
