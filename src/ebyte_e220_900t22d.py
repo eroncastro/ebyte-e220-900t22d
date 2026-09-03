@@ -355,7 +355,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
             raise ValueError(
                 f'Field frequency must be a number from {self.MIN_FREQUENCY} to {self.MAX_FREQUENCY}.')
 
-        self._channel = round(value - self.MIN_FREQUENCY)
+        self.channel = round(value - self.MIN_FREQUENCY)
 
     @staticmethod
     def _key_for(mapping, code):

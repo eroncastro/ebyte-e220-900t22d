@@ -192,12 +192,13 @@ class TestChannelAndFrequency:
         with pytest.raises(ValueError):
             dev.channel = bad
 
-    def test_frequency_setter_rounds_to_nearest_channel(self, device):
+    def test_frequency_setter_rounds_to_channel_and_writes_it(self, device):
         dev, uart, m0, m1 = device
 
         dev.frequency = 860.2
 
         assert dev.channel == 10  # round(860.2 - 850.125) == 10
+        assert uart.written[-1] == bytes([0xC0, 0x04, 0x01, 10])
 
     @pytest.mark.parametrize("bad", [849, 931, "x"])
     def test_frequency_rejects_out_of_range_or_wrong_type(self, device, bad):
