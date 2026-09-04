@@ -12,7 +12,31 @@ classifiers = [
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
+    "ruff>=0.6.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "RUF012",  # ClassVar annotations need `typing`, unavailable on MicroPython
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501", "RUF059"]  # unpacking the `device` fixture tuple is idiomatic here
