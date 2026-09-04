@@ -11,6 +11,7 @@ class RawEbyteE220900T22D:
         self.m0 = m0
         self.m1 = m1
         self.aux = aux
+        self._mode = None
 
     def read_register(self, starting_address, length):
         self._clear_uart()
@@ -39,8 +40,12 @@ class RawEbyteE220900T22D:
         if m0 not in (0, 1) or m1 not in (0, 1):
             raise ValueError('Invalid mode: m0 and m1 must each be 0 or 1.')
 
+        if (m0, m1) == self._mode:
+            return
+
         self.m0.value(m0)
         self.m1.value(m1)
+        self._mode = (m0, m1)
         sleep_ms(20)  # Wait for module to be ready after mode change
 
     def _wrong_format(self, response):
@@ -382,38 +387,17 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         return int.from_bytes(value[3:], 'big')
 
-    def receive(self):
+    def receive(self, size=None):
         self.set_normal_mode()
 
-        response = self._read_response()
+        return self.uart.read(size) if size is not None else self.uart.read()
 
-        if response is None:
-            return None
-
-        target_address = int.from_bytes(response[0:2], 'big')
-        target_channel = response[2]
-        data = response[3:]
-
-        return target_address, target_channel, data
-
-    def transmit(self, data, target_channel, target_address=None, broadcast=False):
-        if broadcast or target_address is None:
-            target_address = 0xFFFF
-        elif not isinstance(target_address, int) or not (0 <= target_address <= self.MAX_MODULE_ADDRESS):
-            raise ValueError(f'target_address must be an int between 0 and {self.MAX_MODULE_ADDRESS}, or None for broadcast.')
-
-        if not isinstance(target_channel, int) or not (0 <= target_channel <= self.MAX_CHANNEL):
-            raise ValueError(f'target_channel must be an int between 0 and {self.MAX_CHANNEL}.')
-
-        if not isinstance(data, (bytes, str)):
-            raise ValueError('data must be bytes or str.')
-
+    def transmit(self, data):
         if isinstance(data, str):
             data = data.encode('utf-8')
 
+        if not isinstance(data, (bytes, bytearray)):
+            raise ValueError('data must be bytes, bytearray, or str.')
+
         self.set_normal_mode()
-
-        packet = target_address.to_bytes(2, 'big') + bytes([target_channel]) + data
-
-        self._clear_uart()
-        self.uart.write(packet)
+        self.uart.write(data)

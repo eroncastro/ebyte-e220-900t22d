@@ -21,7 +21,9 @@ class FakeUART:
         if self.queue:
             self.pending = self.queue.pop(0)
 
-    def read(self):
+    def read(self, size=None):
+        # `size` is accepted to match machine.UART.read([nbytes]); the fake
+        # hands back whole queued chunks and does not honor it.
         if self.pending is not None:
             value, self.pending = self.pending, None
             return value

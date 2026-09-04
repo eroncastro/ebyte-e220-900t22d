@@ -128,6 +128,16 @@ class TestRawSetMode:
         assert m1.history == [0]
         assert no_delay == [20]
 
+    def test_repeat_mode_is_a_noop(self, uart, pins, no_delay):
+        m0, m1 = pins
+        raw = RawEbyteE220900T22D(uart, m0, m1)
+
+        raw.set_mode((1, 0))
+        raw.set_mode((1, 0))  # already there: no pin write, no settle delay
+
+        assert m0.history == [1] and m1.history == [0]
+        assert no_delay == [20]
+
     def test_missing_pins_raises_attribute_error(self, uart):
         raw = RawEbyteE220900T22D(uart, None, None)
 
@@ -345,56 +355,59 @@ class TestAmbientNoiseEnabled:
 
 
 class TestReceive:
-    def test_parses_address_channel_and_data(self, device):
+    def test_returns_buffered_bytes_verbatim(self, device):
         dev, uart, m0, m1 = device
-        uart.incoming.append(bytes([0x00, 0x2A, 0x05]) + b"hello")
+        uart.incoming.append(b"\x00\x2a\x05hello")  # no parsing: raw bytes back
 
-        result = dev.receive()
+        assert dev.receive() == b"\x00\x2a\x05hello"
 
-        assert result == (0x2A, 5, b"hello")
-
-    def test_no_response_returns_none(self, device, no_delay):
+    def test_returns_none_when_nothing_buffered(self, device):
         dev, uart, m0, m1 = device
 
         assert dev.receive() is None
 
+    def test_switches_to_normal_mode_first(self, device):
+        dev, uart, m0, m1 = device
+        dev.set_configuration_mode()  # (1, 1)
+        uart.incoming.append(b"x")
+
+        dev.receive()
+
+        assert (m0.value(), m1.value()) == (0, 0)
+
 
 class TestTransmit:
-    def test_sends_to_explicit_target(self, device):
+    def test_writes_raw_bytes(self, device):
         dev, uart, m0, m1 = device
 
-        dev.transmit(b"hi", target_channel=5, target_address=0x0102)
+        dev.transmit(b"hi")
 
-        assert uart.written[-1] == bytes([0x01, 0x02, 0x05]) + b"hi"
+        assert uart.written[-1] == b"hi"
 
-    def test_broadcast_uses_ffff(self, device):
+    def test_encodes_str_as_utf8(self, device):
         dev, uart, m0, m1 = device
 
-        dev.transmit("hi", target_channel=5, broadcast=True)
+        dev.transmit("café")
 
-        assert uart.written[-1] == bytes([0xFF, 0xFF, 0x05]) + b"hi"
+        assert uart.written[-1] == "café".encode("utf-8")
 
-    def test_string_payload_is_utf8_encoded(self, device):
+    def test_accepts_bytearray(self, device):
         dev, uart, m0, m1 = device
 
-        dev.transmit("café", target_channel=0, target_address=1)
+        dev.transmit(bytearray(b"buf"))
 
-        assert uart.written[-1] == bytes([0x00, 0x01, 0x00]) + "café".encode("utf-8")
+        assert uart.written[-1] == b"buf"
 
-    def test_rejects_bad_target_channel(self, device):
-        dev, uart, m0, m1 = device
-
-        with pytest.raises(ValueError):
-            dev.transmit(b"hi", target_channel=999, target_address=1)
-
-    def test_rejects_bad_target_address(self, device):
+    def test_rejects_other_types(self, device):
         dev, uart, m0, m1 = device
 
         with pytest.raises(ValueError):
-            dev.transmit(b"hi", target_channel=1, target_address=-1)
+            dev.transmit(123)
 
-    def test_rejects_non_bytes_non_str_data(self, device):
+    def test_switches_to_normal_mode_first(self, device):
         dev, uart, m0, m1 = device
+        dev.set_configuration_mode()  # (1, 1)
 
-        with pytest.raises(ValueError):
-            dev.transmit(123, target_channel=1, target_address=1)
+        dev.transmit(b"hi")
+
+        assert (m0.value(), m1.value()) == (0, 0)
