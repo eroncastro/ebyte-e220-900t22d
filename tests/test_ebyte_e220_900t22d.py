@@ -138,6 +138,19 @@ class TestRawSetMode:
         assert m0.history == [1] and m1.history == [0]
         assert no_delay == [20]
 
+    def test_mode_reports_a_readable_name(self, uart, pins):
+        m0, m1 = pins
+        raw = RawEbyteE220900T22D(uart, m0, m1)
+
+        assert raw.mode is None  # not set yet
+
+        raw.set_mode(raw.OperationMode.DEEP_SLEEP)
+        assert raw.mode == "DEEP_SLEEP"
+        assert "mode=DEEP_SLEEP" in repr(raw)
+
+        raw.set_mode(raw.OperationMode.NORMAL)
+        assert raw.mode == "NORMAL"
+
     def test_missing_pins_raises_attribute_error(self, uart):
         raw = RawEbyteE220900T22D(uart, None, None)
 
@@ -175,6 +188,8 @@ class TestConstructorDecodesRegisters:
         # configuration / deep sleep (1, 1) first, normal (0, 0) last
         assert m0.history[0] == 1 and m1.history[0] == 1
         assert m0.history[-1] == 0 and m1.history[-1] == 0
+        assert dev.mode == "NORMAL"
+        assert "mode=NORMAL" in repr(dev)
 
     def test_no_response_raises_value_error(self, uart, pins, no_delay):
         m0, m1 = pins
@@ -389,7 +404,7 @@ class TestTransmit:
 
         dev.transmit("café")
 
-        assert uart.written[-1] == "café".encode("utf-8")
+        assert uart.written[-1] == "café".encode()
 
     def test_accepts_bytearray(self, device):
         dev, uart, m0, m1 = device

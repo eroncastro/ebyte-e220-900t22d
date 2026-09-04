@@ -6,12 +6,38 @@ class RawEbyteE220900T22D:
     MAX_READ_RETRIES = 10
     MAX_CLEAR_READS = 32
 
+    class OperationMode:
+        # (M0, M1)
+        NORMAL = (0, 0)
+        WOR_SENDING = (1, 0)
+        WOR_RECEIVING = (0, 1)
+        DEEP_SLEEP = (1, 1)
+
+    _MODE_NAMES = {
+        OperationMode.NORMAL: 'NORMAL',
+        OperationMode.WOR_SENDING: 'WOR_SENDING',
+        OperationMode.WOR_RECEIVING: 'WOR_RECEIVING',
+        OperationMode.DEEP_SLEEP: 'DEEP_SLEEP',
+    }
+
     def __init__(self, uart, m0, m1, aux=None):
         self.uart = uart
         self.m0 = m0
         self.m1 = m1
         self.aux = aux
         self._mode = None
+
+    def __repr__(self):
+        return (f'{type(self).__name__}(' +
+                f'uart={self.uart}, ' +
+                f'm0={self.m0}, ' +
+                f'm1={self.m1}, ' +
+                f'aux={self.aux}, ' +
+                f'mode={self.mode})')
+
+    @property
+    def mode(self):
+        return self._MODE_NAMES.get(self._mode)
 
     def read_register(self, starting_address, length):
         self._clear_uart()
@@ -35,7 +61,7 @@ class RawEbyteE220900T22D:
         try:
             m0, m1 = mode
         except (TypeError, ValueError):
-            raise ValueError('Invalid mode: expected an (m0, m1) pair.')
+            raise ValueError('Invalid mode: expected an (m0, m1) pair.') from None
 
         if m0 not in (0, 1) or m1 not in (0, 1):
             raise ValueError('Invalid mode: m0 and m1 must each be 0 or 1.')
@@ -79,13 +105,6 @@ class RawEbyteE220900T22D:
 
 
 class EbyteE220900T22D(RawEbyteE220900T22D):
-    class OperationMode:
-        # (M0, M1)
-        NORMAL = (0, 0)
-        WOR_SENDING = (1, 0)
-        WOR_RECEIVING = (0, 1)
-        DEEP_SLEEP = (1, 1)
-
     SERIAL_PORT_RATE = {
         1200: 0b000,
         2400: 0b001,
@@ -160,11 +179,12 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         # Explicit `+` (not adjacent-literal concatenation) between these
         # f-strings: MicroPython 1.17 doesn't support implicit concatenation
         # of adjacent f-string literals.
-        return (f'EbyteE220900T22D(' +
+        return ('EbyteE220900T22D(' +
                 f'uart={self.uart}, ' +
                 f'm0={self.m0}, ' +
                 f'm1={self.m1}, ' +
                 f'aux={self.aux}, ' +
+                f'mode={self.mode}, ' +
                 f'module_address={self.module_address}, ' +
                 f'serial_port_rate={self.serial_port_rate}, ' +
                 f'serial_parity_bit={self.serial_parity_bit}, ' +
@@ -236,7 +256,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @serial_parity_bit.setter
     def serial_parity_bit(self, value):
-        if not value in self.SERIAL_PARITY_BIT:
+        if value not in self.SERIAL_PARITY_BIT:
             values = ', '.join(self.SERIAL_PARITY_BIT.keys())
             raise ValueError(
                 f'Field serial_parity_bit must be one of the following values: {values}.')
@@ -260,7 +280,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     @air_data_rate.setter
     def air_data_rate(self, value):
-        if not value in self.AIR_DATA_RATE:
+        if value not in self.AIR_DATA_RATE:
             values = ', '.join(map(str, self.AIR_DATA_RATE.keys()))
             raise ValueError(
                 f'Field air_data_rate must be one of the following values: {values}.')
@@ -368,7 +388,8 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
             value < self.MIN_FREQUENCY or
             value > self.MAX_FREQUENCY):
             raise ValueError(
-                f'Field frequency must be a number from {self.MIN_FREQUENCY} to {self.MAX_FREQUENCY}.')
+                'Field frequency must be a number from ' +
+                f'{self.MIN_FREQUENCY} to {self.MAX_FREQUENCY}.')
 
         self.channel = round(value - self.MIN_FREQUENCY)
 
