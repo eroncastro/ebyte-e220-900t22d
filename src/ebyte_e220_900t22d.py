@@ -43,7 +43,7 @@ class RawEbyteE220900T22D:
         self._clear_uart()
 
         self.uart.write(bytearray([0xc1, starting_address, length]))
-        return self._read_response()
+        return self._read_response(starting_address, length)
 
     def set_register(self, starting_address, length, *values):
         self._clear_uart()
@@ -52,7 +52,7 @@ class RawEbyteE220900T22D:
         command.extend(bytearray(values))
         self.uart.write(command)
 
-        return self._read_response()
+        return self._read_response(starting_address, length)
 
     def set_mode(self, mode):
         if self.m0 is None or self.m1 is None:
@@ -74,25 +74,34 @@ class RawEbyteE220900T22D:
         self._mode = (m0, m1)
         sleep_ms(20)  # Wait for module to be ready after mode change
 
-    def _wrong_format(self, response):
-        return response and all(el == 0xff for el in list(response))
+    def _read_response(self, starting_address, length):
+        header = bytes([0xC1, starting_address, length])
+        expected = len(header) + length
+        buffer = bytearray()
 
-    def _check_response(self, response):
-        if self._wrong_format(response):
-            raise ValueError('Wrong command format: check starting_address and length.')
-
-    def _read_response(self):
         for _ in range(self.MAX_READ_RETRIES + 1):
-            response = self.uart.read()
+            chunk = self.uart.read()
 
-            if response is not None:
-                self._check_response(response)
-                return response
+            if not chunk:
+                sleep_ms(100)
+                continue
 
-            sleep_ms(100)
+            buffer.extend(chunk)
 
-        self._check_response(None)
-        return None
+            sync = buffer.find(header)
+            if sync != -1 and len(buffer) - sync >= expected:
+                return bytes(buffer[sync:sync + expected])
+
+            if b'\xff\xff\xff' in buffer:
+                raise ValueError(
+                    'Wrong command format: check starting_address and length.')
+
+        if not buffer:
+            return None
+
+        raise ValueError(
+            f'No valid response found in {len(buffer)} bytes read; '
+            'possible line noise or wrong wiring.')
 
     def _clear_uart(self):
         for _ in range(self.MAX_CLEAR_READS):

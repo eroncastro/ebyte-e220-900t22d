@@ -107,6 +107,35 @@ class TestRawReadRegister:
             raw.read_register(0x03, 0x01)
 
 
+class TestRawReadResponseFraming:
+    """_read_response locates the C1 <addr> <len> header rather than trusting
+    that a single uart.read() call returns exactly the reply, so it survives
+    noise and replies split across multiple reads."""
+
+    def test_resyncs_past_leading_noise(self, uart, pins):
+        m0, m1 = pins
+        uart.incoming = [b"\x01\x02", reg_response(0x03, [0x99])]
+        raw = RawEbyteE220900T22D(uart, m0, m1)
+
+        assert raw._read_response(0x03, 0x01) == reg_response(0x03, [0x99])
+
+    def test_reassembles_a_reply_split_across_reads(self, uart, pins):
+        m0, m1 = pins
+        full = reg_response(0x03, [0x99])
+        uart.incoming = [full[:2], full[2:]]  # arrives in two pieces
+        raw = RawEbyteE220900T22D(uart, m0, m1)
+
+        assert raw._read_response(0x03, 0x01) == full
+
+    def test_raises_when_only_noise_ever_arrives(self, uart, pins):
+        m0, m1 = pins
+        uart.incoming = [b"\x01\x02\x03"] * 20  # never contains the expected header
+        raw = RawEbyteE220900T22D(uart, m0, m1)
+
+        with pytest.raises(ValueError, match="No valid response"):
+            raw._read_response(0x03, 0x01)
+
+
 class TestRawSetRegister:
     def test_writes_set_command_with_values(self, uart, pins):
         m0, m1 = pins
