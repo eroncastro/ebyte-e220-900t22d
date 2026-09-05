@@ -16,6 +16,10 @@ REG_0 = 0x62
 # REG1 (address 0x03) = 0xA1 = 0b10100001 decodes to:
 #   sub_packet_length=64 (0b10), ambient_noise_enabled=True (1), transmitting_power=17 (0b01)
 REG_1 = 0xA1
+# REG3 (address 0x05) = 0x93 = 0b10010011 decodes to:
+#   rssi_byte_enabled=True (1), fixed_transmission=False (0), lbt_enabled=True (1),
+#   wor_cycle=2000 (0b011)
+REG_3 = 0x93
 
 INIT_RESPONSES = [
     reg_response(0x00, [0x12, 0x34]),  # module_address
@@ -26,6 +30,10 @@ INIT_RESPONSES = [
     reg_response(0x03, [REG_1]),       # ambient_noise_enabled
     reg_response(0x03, [REG_1]),       # transmitting_power
     reg_response(0x04, [0x0A]),        # channel
+    reg_response(0x05, [REG_3]),       # rssi_byte_enabled
+    reg_response(0x05, [REG_3]),       # fixed_transmission
+    reg_response(0x05, [REG_3]),       # lbt_enabled
+    reg_response(0x05, [REG_3]),       # wor_cycle
 ]
 
 
@@ -231,6 +239,10 @@ class TestConstructorDecodesRegisters:
         assert dev.transmitting_power == 17
         assert dev.channel == 10
         assert dev.frequency == pytest.approx(860.125)
+        assert dev.rssi_byte_enabled is True
+        assert dev.fixed_transmission is False
+        assert dev.lbt_enabled is True
+        assert dev.wor_cycle == 2000
 
     def test_enters_configuration_then_normal_mode(self, device):
         dev, uart, m0, m1 = device
@@ -417,6 +429,105 @@ class TestAmbientNoiseEnabled:
 
         with pytest.raises(ValueError):
             dev.ambient_noise_enabled = 1
+
+
+class TestRssiByteEnabled:
+    def test_disabling_clears_only_bit_7(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x05, [REG_3]))  # answers the internal re-read
+
+        dev.rssi_byte_enabled = False
+
+        # bit 7 cleared, every other bit of 0x93 preserved: 0x93 & ~0x80 == 0x13
+        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 0x13])
+        assert dev.rssi_byte_enabled is False
+
+    def test_enabling_sets_only_bit_7(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x05, [REG_3]))
+
+        dev.rssi_byte_enabled = True
+
+        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 0x93])
+        assert dev.rssi_byte_enabled is True
+
+    def test_rejects_non_bool(self, device):
+        dev, uart, m0, m1 = device
+
+        with pytest.raises(ValueError):
+            dev.rssi_byte_enabled = 1
+
+
+class TestFixedTransmission:
+    def test_enabling_sets_only_bit_6(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x05, [REG_3]))  # answers the internal re-read
+
+        dev.fixed_transmission = True
+
+        # bit 6 set, every other bit of 0x93 preserved: 0x93 | 0x40 == 0xD3
+        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 0xD3])
+        assert dev.fixed_transmission is True
+
+    def test_disabling_clears_only_bit_6(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x05, [REG_3]))
+
+        dev.fixed_transmission = False
+
+        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 0x93])
+        assert dev.fixed_transmission is False
+
+    def test_rejects_non_bool(self, device):
+        dev, uart, m0, m1 = device
+
+        with pytest.raises(ValueError):
+            dev.fixed_transmission = 1
+
+
+class TestLbtEnabled:
+    def test_disabling_clears_only_bit_4(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x05, [REG_3]))  # answers the internal re-read
+
+        dev.lbt_enabled = False
+
+        # bit 4 cleared, every other bit of 0x93 preserved: 0x93 & ~0x10 == 0x83
+        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 0x83])
+        assert dev.lbt_enabled is False
+
+    def test_enabling_sets_only_bit_4(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x05, [REG_3]))
+
+        dev.lbt_enabled = True
+
+        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 0x93])
+        assert dev.lbt_enabled is True
+
+    def test_rejects_non_bool(self, device):
+        dev, uart, m0, m1 = device
+
+        with pytest.raises(ValueError):
+            dev.lbt_enabled = 1
+
+
+class TestWorCycle:
+    def test_setting_updates_only_its_bits(self, device):
+        dev, uart, m0, m1 = device
+        uart.queue.append(reg_response(0x05, [REG_3]))  # answers the internal re-read
+
+        dev.wor_cycle = 4000  # 0b111
+
+        # low 3 bits replaced, high 5 bits of 0x93 preserved: 0x90 | 0b111 == 0x97
+        assert uart.written[-1] == bytes([0xC0, 0x05, 0x01, 0x97])
+        assert dev.wor_cycle == 4000
+
+    def test_rejects_unknown_value(self, device):
+        dev, uart, m0, m1 = device
+
+        with pytest.raises(ValueError):
+            dev.wor_cycle = 999
 
 
 class TestReceive:

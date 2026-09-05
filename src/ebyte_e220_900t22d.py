@@ -163,9 +163,9 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         200: 0b00,
     }
 
-    AMBIENT_NOISE_ENABLED = {
+    BOOL_BIT = {
         True: 1,
-        False: 0
+        False: 0,
     }
 
     TRANSMITTING_POWER = {
@@ -173,6 +173,17 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         13: 0b10,
         17: 0b01,
         22: 0b00,
+    }
+
+    WOR_CYCLE = {
+        500: 0b000,
+        1000: 0b001,
+        1500: 0b010,
+        2000: 0b011,
+        2500: 0b100,
+        3000: 0b101,
+        3500: 0b110,
+        4000: 0b111,
     }
 
     MAX_CHANNEL = 80
@@ -197,6 +208,10 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         self._ambient_noise_enabled = self._saved_ambient_noise_enabled()
         self._transmitting_power = self._saved_transmitting_power()
         self._channel = self._saved_channel()
+        self._rssi_byte_enabled = self._saved_rssi_byte_enabled()
+        self._fixed_transmission = self._saved_fixed_transmission()
+        self._lbt_enabled = self._saved_lbt_enabled()
+        self._wor_cycle = self._saved_wor_cycle()
 
         self.set_normal_mode()
 
@@ -218,7 +233,11 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
                 f'ambient_noise_enabled={self.ambient_noise_enabled}, ' +
                 f'transmitting_power={self.transmitting_power}, ' +
                 f'channel={self.channel}, ' +
-                f'frequency={self.frequency})')
+                f'frequency={self.frequency}, ' +
+                f'rssi_byte_enabled={self.rssi_byte_enabled}, ' +
+                f'fixed_transmission={self.fixed_transmission}, ' +
+                f'lbt_enabled={self.lbt_enabled}, ' +
+                f'wor_cycle={self.wor_cycle})')
 
     def set_normal_mode(self):
         self.set_mode(self.OperationMode.NORMAL)
@@ -355,7 +374,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
         if not isinstance(value, bool):
             raise ValueError('Field ambient_noise_enabled must be a bool.')
 
-        ambient_noise_enabled = self.AMBIENT_NOISE_ENABLED[value]
+        ambient_noise_enabled = self.BOOL_BIT[value]
 
         saved_value = self._saved_value(0x03, 0x01)
         new_value = (ambient_noise_enabled << 5) + (0b11011111 & saved_value)
@@ -364,7 +383,7 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
     def _saved_ambient_noise_enabled(self):
         code = (self._saved_value(0x03, 0x01) >> 5) & 0b1
-        return self._key_for(self.AMBIENT_NOISE_ENABLED, code)
+        return self._key_for(self.BOOL_BIT, code)
 
     @property
     def transmitting_power(self):
@@ -417,6 +436,88 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
                 f'{self.MIN_FREQUENCY} to {self.MAX_FREQUENCY}.')
 
         self.channel = round(value - self.MIN_FREQUENCY)
+
+    @property
+    def rssi_byte_enabled(self):
+        return self._rssi_byte_enabled
+
+    @rssi_byte_enabled.setter
+    def rssi_byte_enabled(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('Field rssi_byte_enabled must be a bool.')
+
+        rssi_byte_enabled = self.BOOL_BIT[value]
+
+        saved_value = self._saved_value(0x05, 0x01)
+        new_value = (rssi_byte_enabled << 7) + (0b01111111 & saved_value)
+        self.set_register(0x05, 0x01, new_value)
+        self._rssi_byte_enabled = value
+
+    def _saved_rssi_byte_enabled(self):
+        code = (self._saved_value(0x05, 0x01) >> 7) & 0b1
+        return self._key_for(self.BOOL_BIT, code)
+
+    @property
+    def fixed_transmission(self):
+        return self._fixed_transmission
+
+    @fixed_transmission.setter
+    def fixed_transmission(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('Field fixed_transmission must be a bool.')
+
+        fixed_transmission = self.BOOL_BIT[value]
+
+        saved_value = self._saved_value(0x05, 0x01)
+        new_value = (fixed_transmission << 6) + (0b10111111 & saved_value)
+        self.set_register(0x05, 0x01, new_value)
+        self._fixed_transmission = value
+
+    def _saved_fixed_transmission(self):
+        code = (self._saved_value(0x05, 0x01) >> 6) & 0b1
+        return self._key_for(self.BOOL_BIT, code)
+
+    @property
+    def lbt_enabled(self):
+        return self._lbt_enabled
+
+    @lbt_enabled.setter
+    def lbt_enabled(self, value):
+        if not isinstance(value, bool):
+            raise ValueError('Field lbt_enabled must be a bool.')
+
+        lbt_enabled = self.BOOL_BIT[value]
+
+        saved_value = self._saved_value(0x05, 0x01)
+        new_value = (lbt_enabled << 4) + (0b11101111 & saved_value)
+        self.set_register(0x05, 0x01, new_value)
+        self._lbt_enabled = value
+
+    def _saved_lbt_enabled(self):
+        code = (self._saved_value(0x05, 0x01) >> 4) & 0b1
+        return self._key_for(self.BOOL_BIT, code)
+
+    @property
+    def wor_cycle(self):
+        return self._wor_cycle
+
+    @wor_cycle.setter
+    def wor_cycle(self, value):
+        if value not in self.WOR_CYCLE:
+            values = ', '.join(map(str, self.WOR_CYCLE.keys()))
+            raise ValueError(
+                f'Field wor_cycle must be one of the following values: {values}.')
+
+        wor_cycle_bin = self.WOR_CYCLE[value]
+
+        saved_value = self._saved_value(0x05, 0x01)
+        new_value = wor_cycle_bin + (0b11111000 & saved_value)
+        self.set_register(0x05, 0x01, new_value)
+        self._wor_cycle = value
+
+    def _saved_wor_cycle(self):
+        code = self._saved_value(0x05, 0x01) & 0b111
+        return self._key_for(self.WOR_CYCLE, code)
 
     @staticmethod
     def _key_for(mapping, code):

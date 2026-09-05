@@ -5,7 +5,7 @@ MicroPython driver for the [EBYTE E220-900T22D](https://www.cdebyte.com/products
 Two classes are provided in `src/ebyte_e220_900t22d.py`:
 
 - `RawEbyteE220900T22D` — low level interface over the module's register read/write protocol and mode pins.
-- `EbyteE220900T22D` — extends `RawEbyteE220900T22D`, adding a high-level interface for interacting with the module. On boot, reads and exposes typed properties (`module_address`, `serial_port_rate`, `serial_parity_bit`, `air_data_rate`, `sub_packet_length`, `ambient_noise_enabled`, `transmitting_power`, `channel`, `frequency`), plus `transmit()` / `receive()` as a raw byte pipe for normal-mode operation (framing and addressing are left to the caller).
+- `EbyteE220900T22D` — extends `RawEbyteE220900T22D`, adding a high-level interface for interacting with the module. On boot, reads and exposes typed properties (`module_address`, `serial_port_rate`, `serial_parity_bit`, `air_data_rate`, `sub_packet_length`, `ambient_noise_enabled`, `transmitting_power`, `channel`, `frequency`, `rssi_byte_enabled`, `fixed_transmission`, `lbt_enabled`, `wor_cycle`), plus `transmit()` / `receive()` as a raw byte pipe for normal-mode operation (framing and addressing are left to the caller).
 
 ## Deploying to a device
 
@@ -51,8 +51,9 @@ mode (mode 0) and then write or read. They add no protocol of their own.
 
 Message boundaries, integrity (e.g. a CRC), retransmission, and addressing are the
 caller's responsibility — they depend entirely on what runs on the other end. If
-you need the module's hardware address filtering, enable fixed-point transmission
-in its registers and prepend the `addrH addrL channel` bytes yourself.
+you need the module's hardware address filtering, set `lora.fixed_transmission = True`
+and prepend the `addrH addrL channel` bytes to `data` yourself before calling
+`transmit()`; the receiver gets only the payload either way.
 
 ## Testing
 
