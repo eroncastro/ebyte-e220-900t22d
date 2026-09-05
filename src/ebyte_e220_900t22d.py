@@ -214,8 +214,6 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
             self._lbt_enabled = self._saved_lbt_enabled()
             self._wor_cycle = self._saved_wor_cycle()
         finally:
-            # Leave the module in normal mode even if a read above failed,
-            # rather than stranding it in deep sleep with no object to fix it.
             self.set_normal_mode()
 
     def __repr__(self):
@@ -536,6 +534,22 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
             raise ValueError('No response from module: check wiring and mode pins.')
 
         return int.from_bytes(value[3:], 'big')
+
+    def restore_defaults(self, channel=None):
+        self.module_address = 0
+        self.serial_port_rate = 9600
+        self.serial_parity_bit = '8N1'
+        self.air_data_rate = 2.4
+        self.sub_packet_length = 200
+        self.ambient_noise_enabled = False
+        self.transmitting_power = 22
+        self.rssi_byte_enabled = False
+        self.fixed_transmission = False
+        self.lbt_enabled = False
+        self.wor_cycle = 500
+
+        if channel is not None:
+            self.channel = channel
 
     def receive(self, size=None):
         self.set_normal_mode()

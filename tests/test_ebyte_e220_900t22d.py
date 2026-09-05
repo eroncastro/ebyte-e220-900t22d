@@ -339,6 +339,7 @@ class TestAirDataRate:
             dev.air_data_rate = 999
 
 
+
 class TestTransmittingPower:
     """The other bit-packed field whose setter math (add, no shift) is correct."""
 
@@ -538,6 +539,52 @@ class TestWorCycle:
 
         with pytest.raises(ValueError):
             dev.wor_cycle = 999
+
+
+class TestRestoreDefaults:
+    def test_writes_documented_defaults(self, device, monkeypatch):
+        dev, uart, m0, m1 = device
+        monkeypatch.setattr(dev, "_saved_value", lambda addr, length: 0)
+
+        dev.restore_defaults()
+
+        assert bytes([0xC0, 0x00, 0x02, 0x00, 0x00]) in uart.written  # module_address = 0
+        assert bytes([0xC0, 0x02, 0x01, 0b01100000]) in uart.written  # serial_port_rate = 9600
+        assert bytes([0xC0, 0x02, 0x01, 0x00]) in uart.written        # serial_parity_bit = 8N1
+        assert bytes([0xC0, 0x02, 0x01, 0b00000010]) in uart.written  # air_data_rate = 2.4
+        assert bytes([0xC0, 0x03, 0x01, 0x00]) in uart.written        # REG1 fields all zero
+        assert bytes([0xC0, 0x05, 0x01, 0x00]) in uart.written        # REG3 fields all zero
+
+        assert dev.module_address == 0
+        assert dev.serial_port_rate == 9600
+        assert dev.serial_parity_bit == "8N1"
+        assert dev.air_data_rate == 2.4
+        assert dev.sub_packet_length == 200
+        assert dev.ambient_noise_enabled is False
+        assert dev.transmitting_power == 22
+        assert dev.rssi_byte_enabled is False
+        assert dev.fixed_transmission is False
+        assert dev.lbt_enabled is False
+        assert dev.wor_cycle == 500
+
+    def test_leaves_channel_untouched_by_default(self, device, monkeypatch):
+        dev, uart, m0, m1 = device
+        monkeypatch.setattr(dev, "_saved_value", lambda addr, length: 0)
+        original_channel = dev.channel
+
+        dev.restore_defaults()
+
+        assert dev.channel == original_channel
+        assert not any(w[:2] == bytes([0xC0, 0x04]) for w in uart.written)
+
+    def test_sets_channel_when_given(self, device, monkeypatch):
+        dev, uart, m0, m1 = device
+        monkeypatch.setattr(dev, "_saved_value", lambda addr, length: 0)
+
+        dev.restore_defaults(channel=17)
+
+        assert dev.channel == 17
+        assert bytes([0xC0, 0x04, 0x01, 17]) in uart.written
 
 
 class TestReceive:

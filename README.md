@@ -55,6 +55,17 @@ you need the module's hardware address filtering, set `lora.fixed_transmission =
 and prepend the `addrH addrL channel` bytes to `data` yourself before calling
 `transmit()`; the receiver gets only the payload either way.
 
+## Restoring defaults
+
+```python
+lora.restore_defaults()          # every field back to its documented default
+lora.restore_defaults(channel=17)  # ...and set the channel too
+```
+
+Applies the factory default listed for each field in the module's register table.
+`channel` has no single documented default across variants, so it's left alone
+unless you pass one.
+
 ## Testing
 
 Tests run on plain CPython with `pytest` — no MicroPython build or hardware required. `machine.UART`/`machine.Pin` are stood in for with small fakes in `tests/fakes.py`, and `tests/conftest.py` shims `time.sleep_ms` (a MicroPython builtin that CPython's `time` module lacks) so the module imports cleanly.
