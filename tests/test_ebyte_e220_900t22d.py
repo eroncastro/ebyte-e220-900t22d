@@ -1,7 +1,7 @@
 import pytest
 
 from ebyte_e220_900t22d import EbyteE220900T22D, RawEbyteE220900T22D
-from fakes import FakePin, FakeUART
+from fakes import FakeAux, FakePin, FakeUART
 
 
 def reg_response(addr, payload):
@@ -176,6 +176,27 @@ class TestRawSetMode:
         raw.set_mode(raw.OperationMode.DEEP_SLEEP)
         assert raw.mode == "DEEP_SLEEP"
         assert "mode=DEEP_SLEEP" in repr(raw)
+
+    def test_waits_for_aux_high_when_aux_given(self, uart, pins, no_delay):
+        m0, m1 = pins
+        aux = FakeAux(busy_reads=3)
+        raw = RawEbyteE220900T22D(uart, m0, m1, aux=aux)
+
+        raw.set_mode((1, 0))
+
+        assert aux.reads == 4  # 3 busy polls + the confirming high read
+        assert no_delay == [5, 5, 5, 2]  # 3 poll waits, then the 2ms settle
+
+    def test_gives_up_waiting_for_aux_after_the_timeout(self, uart, pins, no_delay):
+        m0, m1 = pins
+        aux = FakeAux(busy_reads=10**6)  # never goes high
+        raw = RawEbyteE220900T22D(uart, m0, m1, aux=aux)
+
+        raw.set_mode((1, 0))  # must return rather than hang
+
+        polled_ms = sum(d for d in no_delay if d == RawEbyteE220900T22D.AUX_POLL_INTERVAL_MS)
+        assert polled_ms == RawEbyteE220900T22D.MAX_AUX_WAIT_MS
+        assert no_delay[-1] == 2  # settle delay still applied
 
         raw.set_mode(raw.OperationMode.NORMAL)
         assert raw.mode == "NORMAL"
@@ -455,3 +476,16 @@ class TestTransmit:
         dev.transmit(b"hi")
 
         assert (m0.value(), m1.value()) == (0, 0)
+
+    def test_waits_for_aux_after_writing_when_aux_given(self, pins):
+        m0, m1 = pins
+        aux = FakeAux()
+        uart = FakeUART(queue=list(INIT_RESPONSES))
+        dev = EbyteE220900T22D(uart, m0, m1, aux=aux)
+
+        aux.reads = 0
+        aux.remaining_busy = 2  # busy right after the write, then idle
+
+        dev.transmit(b"hi")
+
+        assert aux.reads == 3  # 2 busy polls + the confirming high read

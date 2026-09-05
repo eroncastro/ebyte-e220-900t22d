@@ -5,6 +5,8 @@ class RawEbyteE220900T22D:
 
     MAX_READ_RETRIES = 10
     MAX_CLEAR_READS = 32
+    MAX_AUX_WAIT_MS = 1000
+    AUX_POLL_INTERVAL_MS = 5
 
     class OperationMode:
         # (M0, M1)
@@ -72,7 +74,21 @@ class RawEbyteE220900T22D:
         self.m0.value(m0)
         self.m1.value(m1)
         self._mode = (m0, m1)
-        sleep_ms(20)  # Wait for module to be ready after mode change
+
+        if self.aux is None:
+            sleep_ms(20)  # no AUX wired: fall back to a fixed settle delay
+        else:
+            self._wait_aux(1)  # AUX is low while the module is busy switching
+            sleep_ms(2)         # manual: hold 2ms after AUX's rising edge
+
+    def _wait_aux(self, level):
+        if self.aux is None:
+            return
+
+        elapsed = 0
+        while self.aux.value() != level and elapsed < self.MAX_AUX_WAIT_MS:
+            sleep_ms(self.AUX_POLL_INTERVAL_MS)
+            elapsed += self.AUX_POLL_INTERVAL_MS
 
     def _read_response(self, starting_address, length):
         header = bytes([0xC1, starting_address, length])
@@ -431,3 +447,4 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         self.set_normal_mode()
         self.uart.write(data)
+        self._wait_aux(1)  # wait for the module to hand the data to the radio

@@ -44,3 +44,22 @@ class FakePin:
             return self._value
         self._value = val
         self.history.append(val)
+
+
+class FakeAux:
+    """Stand-in for the module's AUX pin (input-only, read via value()).
+
+    Reports low (busy) for the first `busy_reads` calls, then high (idle).
+    Set `remaining_busy` directly to re-arm it after construction.
+    """
+
+    def __init__(self, busy_reads=0):
+        self.remaining_busy = busy_reads
+        self.reads = 0
+
+    def value(self):
+        self.reads += 1
+        if self.remaining_busy > 0:
+            self.remaining_busy -= 1
+            return 0
+        return 1
