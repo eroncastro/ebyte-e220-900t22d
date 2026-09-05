@@ -259,6 +259,16 @@ class TestConstructorDecodesRegisters:
         with pytest.raises(ValueError, match="No response from module"):
             EbyteE220900T22D(uart, m0, m1)
 
+    def test_failed_construction_still_leaves_normal_mode(self, uart, pins, no_delay):
+        m0, m1 = pins
+
+        with pytest.raises(ValueError, match="No response from module"):
+            EbyteE220900T22D(uart, m0, m1)
+
+        # not stranded in deep sleep: config (1, 1) then back to normal (0, 0)
+        assert m0.history[0] == 1 and m1.history[0] == 1
+        assert m0.history[-1] == 0 and m1.history[-1] == 0
+
 
 class TestModuleAddress:
     def test_valid_value_writes_two_bytes_big_endian(self, device):

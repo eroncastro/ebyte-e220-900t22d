@@ -200,20 +200,23 @@ class EbyteE220900T22D(RawEbyteE220900T22D):
 
         self.set_configuration_mode()
 
-        self._module_address = self._saved_module_address()
-        self._serial_port_rate = self._saved_serial_port_rate()
-        self._serial_parity_bit = self._saved_serial_parity_bit()
-        self._air_data_rate = self._saved_air_data_rate()
-        self._sub_packet_length = self._saved_sub_packet_length()
-        self._ambient_noise_enabled = self._saved_ambient_noise_enabled()
-        self._transmitting_power = self._saved_transmitting_power()
-        self._channel = self._saved_channel()
-        self._rssi_byte_enabled = self._saved_rssi_byte_enabled()
-        self._fixed_transmission = self._saved_fixed_transmission()
-        self._lbt_enabled = self._saved_lbt_enabled()
-        self._wor_cycle = self._saved_wor_cycle()
-
-        self.set_normal_mode()
+        try:
+            self._module_address = self._saved_module_address()
+            self._serial_port_rate = self._saved_serial_port_rate()
+            self._serial_parity_bit = self._saved_serial_parity_bit()
+            self._air_data_rate = self._saved_air_data_rate()
+            self._sub_packet_length = self._saved_sub_packet_length()
+            self._ambient_noise_enabled = self._saved_ambient_noise_enabled()
+            self._transmitting_power = self._saved_transmitting_power()
+            self._channel = self._saved_channel()
+            self._rssi_byte_enabled = self._saved_rssi_byte_enabled()
+            self._fixed_transmission = self._saved_fixed_transmission()
+            self._lbt_enabled = self._saved_lbt_enabled()
+            self._wor_cycle = self._saved_wor_cycle()
+        finally:
+            # Leave the module in normal mode even if a read above failed,
+            # rather than stranding it in deep sleep with no object to fix it.
+            self.set_normal_mode()
 
     def __repr__(self):
         # Explicit `+` (not adjacent-literal concatenation) between these
